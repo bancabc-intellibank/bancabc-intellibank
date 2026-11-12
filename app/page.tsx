@@ -37,7 +37,7 @@ function downloadSampleCsv() {
   "CUST-004,2026-11-02,340.00,POS,Card",
   "CUST-004,2026-10-28,125.00,Bill payment,Mobile",
   "CUST-005,2026-07-15,12.00,POS,Card"
- ].join("\\n");
+ ].join("\n");
  const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download="intellibank-demo-transactions.csv";a.click();URL.revokeObjectURL(url);
 }
 function downloadCsv(rows:Customer[]) {
