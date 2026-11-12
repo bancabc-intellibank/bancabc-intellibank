@@ -75,6 +75,7 @@ def analyse_csv(csv_text: str) -> dict[str, Any]:
         np.where((risk_score >= 70) & (rec >= 30 if date_col else True), "At risk",
         np.where(freq_rank >= .7, "Loyal", np.where(freq_rank <= .25, "Growing", "Regular"))))
     customers["engagement_score"] = (100-risk_score).astype(int)
+    customers["priority_score"] = (risk_score * .65 + value_rank * 100 * .35).round().clip(0,100).astype(int)
     def reason(r):
         bits=[]
         if date_col and pd.notna(r["days_inactive"]) and r["days_inactive"] >= 21: bits.append(f'{int(r["days_inactive"])} days since last transaction')
@@ -85,7 +86,8 @@ def analyse_csv(csv_text: str) -> dict[str, Any]:
     customers["action"] = np.where(customers["risk"]=="High", "Retention outreach and service check-in",
         np.where(customers["segment"]=="High value", "Relationship review and relevant premium services",
         "Engagement and relevant product education"))
-    customers = customers.sort_values(["risk_score","amount"], ascending=[False,False])
+    customers = customers.sort_values(["priority_score","risk_score","amount"], ascending=[False,False,False]).reset_index(drop=True)
+    customers["priority_rank"] = np.arange(1, len(customers) + 1)
     segment_counts = customers["segment"].value_counts()
     risk_counts = customers["risk"].value_counts()
     recommendations = []
@@ -100,18 +102,21 @@ def analyse_csv(csv_text: str) -> dict[str, Any]:
     _current = {
         "overview":{"customers_analysed":n,"high_churn_risk":int((customers.risk=="High").sum()),
             "high_value_customers":int((customers.segment=="High value").sum()),
-            "cross_sell_leads":int((customers.segment!="At risk").sum()),
+            "cross_sell_leads":int(customers.segment.isin(["Growing","Loyal"]).sum()),
             "transaction_rows":int(len(frame)),"data_mode":"uploaded_csv",
             "currency_note":"Amounts are shown in the dataset's original units; currency is not inferred."},
         "segments":[{"name":str(k),"customers":int(v)} for k,v in segment_counts.items()],
         "customers":[{"id":r.id,"segment":r.segment,"days_since_activity":int(r.days_inactive) if pd.notna(r.days_inactive) else None,
             "churn_risk":r.risk,"risk_score":int(r.risk_score),"engagement_score":int(r.engagement_score),
+            "priority_score":int(r.priority_score),"priority_rank":int(r.priority_rank),
             "transactions":int(r.transactions),"total_value":round(float(r.amount),2),
             "reason":r.reason,"action":r.action} for r in customers.head(500).itertuples()],
         "recommendations":recommendations,
         "profile":{"rows":int(len(frame)),"columns":[str(c) for c in frame.columns],
             "missing_values":{str(k):int(v) for k,v in frame.isna().sum().items()},
             "duplicate_customer_ids":int(frame[id_col].duplicated().sum()),
+            "duplicate_transaction_rows":int(frame.duplicated().sum()),
+            "quality_warnings":([f"{int(frame.duplicated().sum())} exact duplicate transaction rows detected."] if frame.duplicated().sum() else []),
             "detected_fields":{"customer_id":str(id_col),"transaction_date":str(date_col) if date_col else None,
             "amount":str(amount_col) if amount_col else None,"type_or_channel":str(type_col) if type_col else None}},
         "trend":[{"period":"Uploaded dataset","transactions":int(len(frame)),"customers":n}],
@@ -131,11 +136,11 @@ def get_data():
       "overview":{**_DEMO},
       "segments":[{"name":"High value","customers":2840},{"name":"Growing","customers":4120},{"name":"Regular","customers":6380},{"name":"At risk","customers":1960},{"name":"Dormant","customers":870}],
       "customers":[
-        {"id":"CUS-1048","segment":"High value","days_since_activity":0,"churn_risk":"Low","risk_score":8,"engagement_score":92,"transactions":44,"total_value":8200,"reason":"Consistent recent activity and high relative value","action":"Relationship review"},
-        {"id":"CUS-2081","segment":"Growing","days_since_activity":1,"churn_risk":"Low","risk_score":19,"engagement_score":81,"transactions":25,"total_value":2300,"reason":"Recent activity and increasing engagement","action":"Engagement and product education"},
-        {"id":"CUS-3194","segment":"At risk","days_since_activity":28,"churn_risk":"High","risk_score":87,"engagement_score":13,"transactions":3,"total_value":160,"reason":"28 days inactive; low transaction frequency and value","action":"Retention outreach and service check-in"},
-        {"id":"CUS-4270","segment":"Regular","days_since_activity":4,"churn_risk":"Medium","risk_score":52,"engagement_score":48,"transactions":12,"total_value":900,"reason":"Moderate activity relative to this sample","action":"Personalised engagement"},
-        {"id":"CUS-5112","segment":"At risk","days_since_activity":35,"churn_risk":"High","risk_score":94,"engagement_score":6,"transactions":2,"total_value":80,"reason":"35 days inactive; low transaction frequency and value","action":"Retention outreach and service check-in"}],
+        {"id":"CUS-1048","segment":"High value","days_since_activity":0,"churn_risk":"Low","risk_score":8,"engagement_score":92,"priority_score":40,"priority_rank":1,"transactions":44,"total_value":8200,"reason":"Consistent recent activity and high relative value","action":"Relationship review"},
+        {"id":"CUS-2081","segment":"Growing","days_since_activity":1,"churn_risk":"Low","risk_score":19,"engagement_score":81,"priority_score":35,"priority_rank":2,"transactions":25,"total_value":2300,"reason":"Recent activity and increasing engagement","action":"Engagement and product education"},
+        {"id":"CUS-3194","segment":"At risk","days_since_activity":28,"churn_risk":"High","risk_score":87,"engagement_score":13,"priority_score":83,"priority_rank":3,"transactions":3,"total_value":160,"reason":"28 days inactive; low transaction frequency and value","action":"Retention outreach and service check-in"},
+        {"id":"CUS-4270","segment":"Regular","days_since_activity":4,"churn_risk":"Medium","risk_score":52,"engagement_score":48,"priority_score":50,"priority_rank":4,"transactions":12,"total_value":900,"reason":"Moderate activity relative to this sample","action":"Personalised engagement"},
+        {"id":"CUS-5112","segment":"At risk","days_since_activity":35,"churn_risk":"High","risk_score":94,"engagement_score":6,"priority_score":88,"priority_rank":5,"transactions":2,"total_value":80,"reason":"35 days inactive; low transaction frequency and value","action":"Retention outreach and service check-in"}],
       "recommendations":[{"segment":"At risk","customers":1960,"opportunity":"Retention outreach","rationale":"Illustrative demo rule: declining activity and long inactivity gaps.","priority":"High"},{"segment":"High value","customers":2840,"opportunity":"Relationship review","rationale":"Illustrative demo rule: strong relative transaction value.","priority":"Medium"}],
       "profile":None,"trend":[{"period":"Demo sample","transactions":31200,"customers":16170}],
       "insights":["Synthetic demonstration records are loaded.","Upload a CSV to calculate metrics from your own data.","No supervised churn model has been trained."],
