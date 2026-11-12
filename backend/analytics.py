@@ -37,14 +37,21 @@ def analyse_csv(csv_text: str) -> dict[str, Any]:
     type_col = _find(frame.columns, ["transaction_type", "txn_type", "product", "channel", "category"])
     if not id_col:
         raise ValueError("Could not identify a customer identifier. Include a column such as customer_id or account_id.")
+    missing_customer_ids = int(frame[id_col].isna().sum())
     frame = frame.dropna(subset=[id_col]).copy()
     if frame.empty:
         raise ValueError("No rows have a usable customer identifier.")
     frame[id_col] = frame[id_col].astype(str)
+    invalid_amounts = 0
+    invalid_dates = 0
     if amount_col:
-        frame[amount_col] = pd.to_numeric(frame[amount_col], errors="coerce").fillna(0)
+        parsed_amounts = pd.to_numeric(frame[amount_col], errors="coerce")
+        invalid_amounts = int((frame[amount_col].notna() & parsed_amounts.isna()).sum())
+        frame[amount_col] = parsed_amounts.fillna(0)
     if date_col:
-        frame[date_col] = pd.to_datetime(frame[date_col], errors="coerce", utc=True)
+        parsed_dates = pd.to_datetime(frame[date_col], errors="coerce", utc=True)
+        invalid_dates = int((frame[date_col].notna() & parsed_dates.isna()).sum())
+        frame[date_col] = parsed_dates
     today = frame[date_col].max() if date_col and frame[date_col].notna().any() else pd.Timestamp.now(tz="UTC")
     grouped = frame.groupby(id_col, dropna=True)
     rows = []
@@ -116,7 +123,10 @@ def analyse_csv(csv_text: str) -> dict[str, Any]:
             "missing_values":{str(k):int(v) for k,v in frame.isna().sum().items()},
             "duplicate_customer_ids":int(frame[id_col].duplicated().sum()),
             "duplicate_transaction_rows":int(frame.duplicated().sum()),
-            "quality_warnings":([f"{int(frame.duplicated().sum())} exact duplicate transaction rows detected."] if frame.duplicated().sum() else []),
+            "missing_customer_ids":missing_customer_ids,
+            "invalid_dates":invalid_dates,
+            "invalid_amounts":invalid_amounts,
+            "quality_warnings":([f"{int(frame.duplicated().sum())} exact duplicate transaction rows detected."] if frame.duplicated().sum() else []) + ([f"{missing_customer_ids} rows with missing customer IDs were excluded."] if missing_customer_ids else []) + ([f"{invalid_dates} invalid transaction dates were found."] if invalid_dates else []) + ([f"{invalid_amounts} invalid transaction amounts were treated as zero."] if invalid_amounts else []),
             "detected_fields":{"customer_id":str(id_col),"transaction_date":str(date_col) if date_col else None,
             "amount":str(amount_col) if amount_col else None,"type_or_channel":str(type_col) if type_col else None}},
         "trend":[{"period":"Uploaded dataset","transactions":int(len(frame)),"customers":n}],
