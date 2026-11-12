@@ -57,6 +57,7 @@ async def evaluate_churn_model(request: Request):
     try:
         raw=await request.body()
         if not raw: raise ValueError("Upload a labelled customer-level CSV.")
+        if len(raw) > 15 * 1024 * 1024: raise ValueError("CSV exceeds the 15 MB prototype upload limit.")
         frame=pd.read_csv(StringIO(raw.decode("utf-8-sig")))
         if len(frame)<20: raise ValueError("At least 20 labelled customer records are required for this prototype evaluation.")
         result=train_churn_baseline(frame, target="churned")
