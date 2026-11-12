@@ -7,6 +7,7 @@ from backend.analytics import get_data, analyse_csv
 from backend.simulation import simulate_campaign
 from backend.reporting import build_executive_report
 from backend.model import train_churn_baseline
+from backend.feedback import record_outcome, feedback_summary
 
 app = FastAPI(title="BancABC IntelliBank API", version="0.3.0",
               description="Customer intelligence, scenario analysis and executive reporting prototype")
@@ -18,6 +19,14 @@ class SimulationRequest(BaseModel):
     cost_per_contact: float = Field(gt=0, le=1000000)
     expected_retention_rate: float = Field(ge=0, le=100)
     value_per_retained_customer: float = Field(ge=0, le=100000000)
+
+class CampaignOutcomeRequest(BaseModel):
+    campaign_name: str = Field(min_length=1, max_length=100)
+    customers_contacted: int = Field(gt=0, le=10000000)
+    customers_retained: int = Field(ge=0, le=10000000)
+    campaign_cost: float = Field(ge=0, le=100000000)
+    value_per_retained_customer: float = Field(ge=0, le=100000000)
+    expected_retention_rate: float = Field(ge=0, le=100)
 
 @app.get("/api/health")
 def health():
@@ -49,7 +58,22 @@ def simulate(request: SimulationRequest):
 
 @app.get("/api/report")
 def executive_report():
-    return build_executive_report(get_data())
+    report = build_executive_report(get_data())
+    report["campaign_feedback"] = feedback_summary()
+    return report
+
+@app.post("/api/campaign-outcomes")
+def campaign_outcomes(request: CampaignOutcomeRequest):
+    try:
+        return record_outcome(request.campaign_name, request.customers_contacted,
+            request.customers_retained, request.campaign_cost,
+            request.value_per_retained_customer, request.expected_retention_rate)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+@app.get("/api/campaign-outcomes")
+def get_campaign_outcomes():
+    return feedback_summary()
 
 @app.post("/api/model/evaluate")
 async def evaluate_churn_model(request: Request):
