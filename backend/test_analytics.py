@@ -18,8 +18,12 @@ class AnalyticsTests(unittest.TestCase):
         self.assertTrue(result["segments"])
         self.assertTrue(result["customers"])
         self.assertIn("risk_score", result["customers"][0])
+        self.assertIn("priority_score", result["customers"][0])
+        self.assertIn("priority_rank", result["customers"][0])
         self.assertIn("reason", result["customers"][0])
         self.assertTrue(result["recommendations"])
+        self.assertIn("duplicate_transaction_rows", result["profile"])
+        self.assertIn("quality_warnings", result["profile"])
         self.assertEqual(result["overview"]["data_mode"], "uploaded_csv")
 
     def test_missing_customer_identifier_is_rejected(self):
