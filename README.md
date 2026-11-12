@@ -14,7 +14,7 @@ BancABC IntelliBank is a customer-intelligence prototype that turns transaction 
 - Customer action prioritisation combining relative risk and customer value.
 - Segment-level engagement and product-discovery prompts. These are not product eligibility or credit decisions.
 - Retention campaign Impact Simulator using user-entered assumptions.
-- Executive intelligence report download with summary, segment actions, priority watchlist and data-quality notes.
+- Executive intelligence report download with summary, segment actions, priority watchlist, data-quality notes and campaign feedback.\n- Aggregate campaign outcome capture to compare actual retention against scenario assumptions (in-memory prototype).
 - Optional labelled churn-model evaluation endpoint reporting ROC-AUC, average precision (PR-AUC), precision, recall, F1 and confusion matrix.
 - Synthetic demonstration data, clearly labelled.
 
@@ -55,7 +55,7 @@ python -m unittest discover -s backend -p "test_*.py"
 | GET | `/api/analysis` | Current complete analysis |
 | POST | `/api/analyse` | Upload transaction-level CSV |
 | POST | `/api/simulate` | Calculate a retention campaign scenario |
-| GET | `/api/report` | Generate executive intelligence report |
+| GET | `/api/report` | Generate executive intelligence report |\n| POST | `/api/campaign-outcomes` | Record aggregate campaign results (no customer IDs) |\n| GET | `/api/campaign-outcomes` | View in-memory campaign feedback summary |
 | POST | `/api/model/evaluate` | Evaluate an ephemeral labelled churn baseline |
 | GET | `/api/overview` | Overview metrics |
 | GET | `/api/segments` | Segment counts |
@@ -90,7 +90,7 @@ See [CSV upload guide](docs/CSV_GUIDE.md) and [modelling guide](docs/MODELLING.m
 - Cross-sell prompts are segment-level suggestions only. Product eligibility, suitability, affordability, consent and bank policy must be checked by authorised staff.
 - The Impact Simulator uses assumptions entered by the user. It does not establish actual revenue or campaign effectiveness.
 - The churn evaluation endpoint requires approved historical labels. Do not fabricate labels or report metrics from synthetic labels as real bank performance.
-- Uploaded data is kept in API process memory; restarting the backend clears it. This prototype is single-process and not multi-user isolated.
+- Uploaded data and campaign feedback are kept in API process memory; restarting the backend clears them. This prototype is single-process and not multi-user isolated.
 - Use only synthetic or organiser-authorised, appropriately minimised data. Do not upload identifiable customer records to a public demo.
 
 ## Security and production limitations
